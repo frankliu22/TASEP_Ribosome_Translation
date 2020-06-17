@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import ast
+import sys
 import xlsxwriter
 from codon_utils import *
 
@@ -32,15 +33,16 @@ def harvest_rho(bedgraph_file_path, tsv_file_path):
     # First, get all the codon sequences
     for g in range(num_genes):
         codon_num_sequences[g] = nucleotide_seq_to_codon_nums(codon_str_sequences[g])
+        print("Harvested codon sequence for gene " + str(g))
 
     # Next, assemble together all of the raw rho vectors
     for g in range(num_genes):
-        if senses[g] == '-':
-            continue   # skip those genes for now
         seq_length = len(codon_str_sequences[g])   # number of RNA nucleotides inside coding transcript
         raw_rho_vector = np.zeros(seq_length // 3)   # want integer number of indices
         contiguous_coordinates = []   # will hold a list, in order, of all the coordinates for the coding sequence
         coordinate_list = mapped_coordinates[g]
+        if senses[g] == '-':
+            coordinate_list = coordinate_list[::-1]   # put in reverse order
         for coordinate_str in coordinate_list:
             elems = coordinate_str.split(" ")
             begin, end = int(elems[2]), int(elems[3])
@@ -48,19 +50,19 @@ def harvest_rho(bedgraph_file_path, tsv_file_path):
         for i in range(seq_length // 3):
             raw_rho_vector[i] = np.mean([get_riboseq_val(chromosome_dfs[chromosomes[g]], contiguous_coordinates[3*i+c]) for c in range(0,3)])
         raw_rho_vectors[g] = raw_rho_vector
+        print("Harvested Riboseq values for gene " + str(g))
 
     # Write outputs to Excel file
     workbook = xlsxwriter.Workbook('Human Genome Input.xlsx')
     sheet = workbook.add_worksheet()
     for g in range(num_genes):
-        if senses[g] == '-':
-            continue   # skip negative genes for now
         row_index = 3 * g
         sheet.write(row_index, 0, gene_names[g])
         for column, value in enumerate(codon_num_sequences[g].tolist()):
             sheet.write(row_index+1, column, value)
         for column, value in enumerate(raw_rho_vectors[g].tolist()):
             sheet.write(row_index+2, column, value)
+        print("Wrote to excel file for gene " + str(g))
     workbook.close()
 
 def get_riboseq_val(chromosome_df, coord):
@@ -79,5 +81,8 @@ def nucleotide_seq_to_codon_nums(nucleotide_seq):
         codon_num_list[i] = get_codon_num(nucleotide_seq[(3*i) : (3*i+3)])
     return codon_num_list
 
-harvest_rho("GM18502.bedGraph", "test.tsv")
-print("code reached completion")
+if __name__ == "__main__":
+    harvest_rho(sys.argv[1], sys.argv[2])
+    print("code reached completion")
+
+# harvest_rho("GM18502.bedGraph", "test.tsv")
